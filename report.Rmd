@@ -176,7 +176,7 @@ categories <- list('Astronomical Low Tide' = eventTypes[grep('Astronomical', eve
                  'Sleet' = eventTypes[grep('Sleet', eventTypes, ignore.case=TRUE)],  
                  'Storm Surge/Tide' = eventTypes[grep('Blow-out Tide|Coastalstorm|Coastal Storm', eventTypes, ignore.case=TRUE)],
                  'Strong Wind' = eventTypes[grep('Strong Wind', eventTypes, ignore.case=TRUE)],  
-                 'Thunderstorm Wind' = eventTypes[grep('Tstm|Thunderstorm wind', eventTypes, ignore.case=TRUE)],  
+                 'Thunderstorm Wind' = eventTypes[grep('Tstm|Thunderstorm', eventTypes, ignore.case=TRUE)],  
                  'Tornado' = eventTypes[grep('Tornado', eventTypes, ignore.case=TRUE)],  
                  'Tropical Depression' = eventTypes[grepl('(?=.*Tropical)(?=.*Depression)', eventTypes, perl=TRUE, ignore.case=TRUE)],
                  'Tropical Storm' = eventTypes[grepl('(?=.*Tropical)(?=.*Storm)', eventTypes, perl=TRUE, ignore.case=TRUE)],
@@ -184,7 +184,7 @@ categories <- list('Astronomical Low Tide' = eventTypes[grep('Astronomical', eve
                  'Volcanic Ash' = eventTypes[grep('Volcanic', eventTypes, ignore.case=TRUE)],  
                  'Waterspout' = eventTypes[grep('Waterspout|Water spout', eventTypes, ignore.case=TRUE)],  
                  'Wildfire' = eventTypes[grep('Fire', eventTypes, ignore.case=TRUE)],  
-                 'Winter Storm' = eventTypes[grep('Blowing Snow', eventTypes, ignore.case=TRUE)],   
+                 'Winter Storm' = eventTypes[grep('Blowing Snow|Snow Squalls', eventTypes, ignore.case=TRUE)],   
                  'Winter Weather' = eventTypes[grep('Black Ice|Accumulated Snow', eventTypes, ignore.case=TRUE)]
             )
 ```
@@ -197,8 +197,6 @@ data$EventType <- factor(data$EVTYPE)
 levels(data$EventType) <- categories
 ```
 
-
-
 ### Health
 
 The following columns contained in the loaded data are relevant here:
@@ -206,6 +204,11 @@ The following columns contained in the loaded data are relevant here:
 1. FATALITIES - The number of direct and indirect fatalities reported
 2. INJURIES - The number of direct and indirect injuries reported
 
+Total the number of injuries and fatalities for each `EventType`:
+
+```{r healthImpact}
+healthImpact <- by(data, data$EventType, function(x) colSums(x[,c('INJURIES', 'FATALITIES')]))
+```
 
 ### Economy
 
