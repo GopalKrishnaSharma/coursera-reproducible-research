@@ -1,0 +1,223 @@
+The Economic and Health Impact of U.S. Weather Events (1950-2011)
+=================================================================
+
+# Synopsis
+
+The data for this analysis was obtained from the U.S. National Oceanic and
+Atmospheric Administration's (NOAA) storm database.
+
+# Data Processing
+
+## Obtain and load the data
+
+Download and unzip the data from the NOAA storm database, if this hasn't been
+done already:
+
+```{r downloadData}
+if(!file.exists('StormData.csv.bz2')) {
+    download.file(
+        'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2',
+        destfile = 'StormData.csv.bz2', method = 'curl')
+}
+```
+
+Once the file has been obtained, load the data for analysis (`read.csv` 
+automatically decompresses the file, which is very handy):
+
+```{r loadData, cache=TRUE}
+data <- read.csv('StormData.csv.bz2')
+```
+
+## Isolate relevant data
+
+This study is concerned with the impact of weather events on health and the
+economy. The following sections identify, isolate, and process the relevant data
+in order to draw sensible conclusions.
+
+An explanation of the data, including the columns identified below, can be found
+[here]
+(https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+
+### Event Types
+
+Before investigating health and economic impacts specifically, the different
+weather event types (found in the EVTYPE column in the data set) need to be
+examined.
+
+```{r eventTypes}
+eventTypes <- levels(data$EVTYPE)
+```
+
+There are a total of `r length(levels(data$EVTYPE))` different events types. A
+cursory investigation, however, reveals a few problems:
+
+#### Some event types are unknown
+
+For example, the very first entry in the `eventTypes` list:
+
+```{r unknownEvent}
+eventTypes[1]
+```
+
+These are removed:
+
+```{r removeUnknownEvents}
+data <- data[data$EVTYPE != eventTypes[1],]
+```
+
+#### Some events don't describe events at all
+
+These *summary* events do not make sense in this context:
+
+```{r summaryEvents}
+eventTypes[677:684]
+```
+
+These are removed:
+
+```{r removeSummaryEvents}
+data <- data[-grep('summary', data$EVTYPE, ignore.case=TRUE),]
+```
+
+Likewise,
+
+```{r hypothermia}
+eventTypes[408:410]
+```
+
+Hypothermia may occur as a result of a weather event, but is not a weather
+event. These are removed:
+
+```{r removeHypothermiaEvents}
+data <- data[-grep('hyperthermia|hypothermia', data$EVTYPE, ignore.case=TRUE),]
+```
+
+#### Mixed casing
+
+Entries like these are effectively duplicates, but won't be recognized as such
+because of the mixed capital and lower case letters:
+
+```{r mixedCasing}
+eventTypes[185:188]
+```
+
+Change all EVTYPEs to upper case, strip surrounding whitespace, and correct
+unconventional spacing:
+
+```{r toUpperCase}
+data$EVTYPE <- toupper(data$EVTYPE)
+data$EVTYPE <- gsub('^\\s+|\\s+$', '', data$EVTYPE)
+data$EVTYPE <- gsub('\\s+', ' ', data$EVTYPE)
+data$EVTYPE <- factor(data$EVTYPE)
+```
+
+Now, drop the unused levels:
+
+```{r dropUnusedLevelsPrelim}
+d <- droplevels(data$EVTYPE)
+eventTypes <- levels(data$EVTYPE)
+```
+
+With this preliminary cleanup, there are `r length(eventTypes)` event types
+remaining.
+
+#### There is a lot of duplication
+
+For example, the following is a subset of the eventTypes pertaining to some
+different kinds of thunderstorms:
+
+```{r freezingPercipitation}
+eventTypes[597:606]
+```
+
+In light of this messy event classification, the remaining
+`r length(eventTypes)` event types will be matched and categorized according to
+the most significant terms comprising the events named in the *Storm Data Event
+Table* in section 2.1.1 of [Storm Data Preparation]
+(https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+. This classification is obtained as follows:
+
+```{r classification}
+categories <- list('Astronomical Low Tide' = eventTypes[grep('Astronomical', eventTypes, ignore.case=TRUE)],
+                 'Avalanche' = eventTypes[grep('Avalanche', eventTypes, ignore.case=TRUE)],
+                 'Blizzard' = eventTypes[grep('Blizzard', eventTypes, ignore.case=TRUE)],
+                 'Coastal Flood' = eventTypes[grep('Coastal|Beach', eventTypes, ignore.case=TRUE)],
+                 'Cold/Wind Chill' = eventTypes[grep('Wind Chill', eventTypes, ignore.case=TRUE)],
+                 'Debris Flow' =  eventTypes[grepl('(?=.*Debris)(?=.*Flow)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Dense Fog' = eventTypes[grepl('(?=.*Dense)(?=.*Fog)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Dense Smoke' = eventTypes[grepl('(?=.*Dense)(?=.*Smoke)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Drought' = eventTypes[grep('Dry|Drought|Below Normal Precipitation', eventTypes, ignore.case=TRUE)],
+                 'Dust Devil' = eventTypes[grepl('(?=.*Dust)(?=.*Devil)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Dust Storm' = eventTypes[grepl('(?=.*Dust)(?=.*Storm)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Excessive Heat' = eventTypes[grep('Excessive Heat', eventTypes, ignore.case=TRUE)],
+                 'Extreme Cold/Wind Chill' = eventTypes[grepl('(?=.*Bitter)(?=.*Wind)|(?=.*Extreme)(?=.*Wind)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Flash Flood' = eventTypes[grepl('(?=.*Flash)(?=.*Storm)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Flood' = eventTypes[grep('Flood', eventTypes, ignore.case=TRUE)],
+                 'Frost/Freeze' = eventTypes[grep('Frost|Freeze', eventTypes, ignore.case=TRUE)],
+                 'Funnel Cloud' = eventTypes[grepl('(?=.*Funnel)(?=.*Cloud)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Freezing Fog' = eventTypes[grepl('(?=.*Freezing)(?=.*Fog)', eventTypes, perl=TRUE, ignore.case=TRUE)], 
+                 'Hail' = eventTypes[grep('Hail', eventTypes, ignore.case=TRUE)], 
+                 'Heat' = eventTypes[grep('Abnormal Warmth', eventTypes, ignore.case=TRUE)], 
+                 'Heavy Rain' = eventTypes[grep('Abnormally Wet|Heavy Rain', eventTypes, ignore.case=TRUE)],
+                 'Heavy Snow' = eventTypes[grep('Heavy snow', eventTypes, ignore.case=TRUE)], 
+                 'High Surf' = eventTypes[grep('High Surf', eventTypes, ignore.case=TRUE)], 
+                 'High Wind' = eventTypes[grep('High Wind', eventTypes, ignore.case=TRUE)],  
+                 'Hurricane (Typhoon)' = eventTypes[grep('hurricane|typhoon', eventTypes, ignore.case=TRUE)],   
+                 'Ice Storm' = eventTypes[grep('Ice Storm', eventTypes, ignore.case=TRUE)],   
+                 'Lake-Effect Snow' = eventTypes[grepl('(?=.*Lake)(?=.*Snow)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Lakeshore Flood' = eventTypes[grepl('(?=.*Lake)(?=.*Flood)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Lightning' = eventTypes[grep('Lightning', eventTypes, ignore.case=TRUE)],   
+                 'Marine Hail' = eventTypes[grepl('(?=.*Marine)(?=.*Hail)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Marine High Wind' = eventTypes[grepl('(?=.*Marine)(?=.*High)(?=.*Wind)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Marine Strong Wind' = eventTypes[grepl('(?=.*Marine)(?=.*Strong)(?=.*Wind)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Marine Thunderstorm Wind' = eventTypes[grepl('(?=.*Marine)(?=.*Thunderstorm)(?=.*Wind)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Rip Current' = eventTypes[grep('Rip Current', eventTypes, ignore.case=TRUE)], 
+                 'Seiche' = eventTypes[grep('Seiche', eventTypes, ignore.case=TRUE)],  
+                 'Sleet' = eventTypes[grep('Sleet', eventTypes, ignore.case=TRUE)],  
+                 'Storm Surge/Tide' = eventTypes[grep('Blow-out Tide|Coastalstorm|Coastal Storm', eventTypes, ignore.case=TRUE)],
+                 'Strong Wind' = eventTypes[grep('Strong Wind', eventTypes, ignore.case=TRUE)],  
+                 'Thunderstorm Wind' = eventTypes[grep('Tstm|Thunderstorm wind', eventTypes, ignore.case=TRUE)],  
+                 'Tornado' = eventTypes[grep('Tornado', eventTypes, ignore.case=TRUE)],  
+                 'Tropical Depression' = eventTypes[grepl('(?=.*Tropical)(?=.*Depression)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Tropical Storm' = eventTypes[grepl('(?=.*Tropical)(?=.*Storm)', eventTypes, perl=TRUE, ignore.case=TRUE)],
+                 'Tsunami' = eventTypes[grep('Tsunami', eventTypes, ignore.case=TRUE)],  
+                 'Volcanic Ash' = eventTypes[grep('Volcanic', eventTypes, ignore.case=TRUE)],  
+                 'Waterspout' = eventTypes[grep('Waterspout|Water spout', eventTypes, ignore.case=TRUE)],  
+                 'Wildfire' = eventTypes[grep('Fire', eventTypes, ignore.case=TRUE)],  
+                 'Winter Storm' = eventTypes[grep('Blowing Snow', eventTypes, ignore.case=TRUE)],   
+                 'Winter Weather' = eventTypes[grep('Black Ice|Accumulated Snow', eventTypes, ignore.case=TRUE)]
+            )
+```
+
+
+Apply the new event categories to the data set:
+
+```{r applyNewCategories}
+data$EventType <- factor(data$EVTYPE)
+levels(data$EventType) <- categories
+```
+
+
+
+### Health
+
+The following columns contained in the loaded data are relevant here:
+
+1. FATALITIES - The number of direct and indirect fatalities reported
+2. INJURIES - The number of direct and indirect injuries reported
+
+
+### Economy
+
+The following columns contained in the loaded data are relevant here:
+
+1. PROPDMG - The dollar amount of the property damage
+2. PROPDMGEXP - The magnitude of the dollar amount (K = thousands,
+M = millions, B = billions)
+3. CROPDMG - The dollar amount of damage done to crops
+4. CROPDMGEXP - The magnitude of the dollar amount (see PROPDMGEXP) 
+
+
+# Results
+
+
