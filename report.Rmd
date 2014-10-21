@@ -220,6 +220,18 @@ M = millions, B = billions)
 3. CROPDMG - The dollar amount of damage done to crops
 4. CROPDMGEXP - The magnitude of the dollar amount (see PROPDMGEXP) 
 
+Apply the respective magnitudes of the damages to determine the total dollar
+amount for damage to property and crops:
+
+```{r dollarAmount}
+data$TotalPropertyDamage <- ifelse(data$PROPDMGEXP == 'K', data$PROPDMG * 1000,
+                                   ifelse(data$PROPDMGEXP == 'M', data$PROPDMG * 1000000,
+                                          data$PROPDMG * 1000000000))
+data$TotalCropDamage <- ifelse(data$CROPDMGEXP == 'K', data$CROPDMG * 1000,
+                               ifelse(data$CROPDMGEXP == 'M', data$CROPDMG * 1000000,
+                                                data$CROPDMG * 1000000000))
+
+```
 
 # Results
 
