@@ -4,7 +4,10 @@ The Economic and Health Impact of U.S. Weather Events (1950-2011)
 # Synopsis
 
 The data for this analysis was obtained from the U.S. National Oceanic and
-Atmospheric Administration's (NOAA) storm database.
+Atmospheric Administration's (NOAA) storm database. Its purpose analysis is to
+determine which weather events have the greatest impact on population health and
+the economy. That which follows provides and exact, reproducible steps in data
+processing, analysis, and visualization.
 
 # Data Processing
 
@@ -28,7 +31,7 @@ automatically decompresses the file, which is very handy):
 data <- read.csv('StormData.csv.bz2')
 ```
 
-## Isolate relevant data
+## Find relevant data
 
 This study is concerned with the impact of weather events on health and the
 economy. The following sections identify, isolate, and process the relevant data
@@ -48,7 +51,7 @@ examined.
 eventTypes <- levels(data$EVTYPE)
 ```
 
-There are a total of `r length(levels(data$EVTYPE))` different events types. A
+There are a total of `r length(eventTypes)` different events types. A
 cursory investigation, however, reveals a few problems:
 
 #### Some event types are unknown
@@ -59,24 +62,12 @@ For example, the very first entry in the `eventTypes` list:
 eventTypes[1]
 ```
 
-These are removed:
-
-```{r removeUnknownEvents}
-data <- data[data$EVTYPE != eventTypes[1],]
-```
-
 #### Some events don't describe events at all
 
 These *summary* events do not make sense in this context:
 
 ```{r summaryEvents}
 eventTypes[677:684]
-```
-
-These are removed:
-
-```{r removeSummaryEvents}
-data <- data[-grep('summary', data$EVTYPE, ignore.case=TRUE),]
 ```
 
 Likewise,
@@ -86,11 +77,7 @@ eventTypes[408:410]
 ```
 
 Hypothermia may occur as a result of a weather event, but is not a weather
-event. These are removed:
-
-```{r removeHypothermiaEvents}
-data <- data[-grep('hyperthermia|hypothermia', data$EVTYPE, ignore.case=TRUE),]
-```
+event.
 
 #### Mixed casing
 
@@ -101,36 +88,16 @@ because of the mixed capital and lower case letters:
 eventTypes[185:188]
 ```
 
-Change all EVTYPEs to upper case, strip surrounding whitespace, and correct
-unconventional spacing:
-
-```{r toUpperCase}
-data$EVTYPE <- toupper(data$EVTYPE)
-data$EVTYPE <- gsub('^\\s+|\\s+$', '', data$EVTYPE)
-data$EVTYPE <- gsub('\\s+', ' ', data$EVTYPE)
-data$EVTYPE <- factor(data$EVTYPE)
-```
-
-Now, drop the unused levels:
-
-```{r dropUnusedLevelsPrelim}
-d <- droplevels(data$EVTYPE)
-eventTypes <- levels(data$EVTYPE)
-```
-
-With this preliminary cleanup, there are `r length(eventTypes)` event types
-remaining.
-
 #### There is a lot of duplication
 
-For example, the following is a subset of the eventTypes pertaining to some
+For example, the following is a subset of the `eventTypes` pertaining to some
 different kinds of thunderstorms:
 
-```{r freezingPercipitation}
-eventTypes[597:606]
+```{r thunderstorms}
+eventTypes[749:760]
 ```
 
-In light of this messy event classification, the remaining
+In light of this messy event classification, the
 `r length(eventTypes)` event types will be matched and categorized according to
 the most significant terms comprising the events named in the *Storm Data Event
 Table* in section 2.1.1 of [Storm Data Preparation]
@@ -189,6 +156,8 @@ categories <- list('Astronomical Low Tide' = eventTypes[grep('Astronomical', eve
             )
 ```
 
+Terms were added to the regexes upon visual inspection of the original data
+wherever appropriate. 
 
 Apply the new event categories to the data set:
 
@@ -207,7 +176,9 @@ The following columns contained in the loaded data are relevant here:
 Total the number of injuries and fatalities for each `EventType`:
 
 ```{r healthImpact}
-healthImpact <- by(data, data$EventType, function(x) colSums(x[,c('INJURIES', 'FATALITIES')]))
+fatalities <- tapply(data$FATALITIES, data$EventType, sum)
+injuries <- tapply(data$INJURIES, data$EventType, sum)
+healthImpact <- as.data.frame(cbind(fatalities, injuries))
 ```
 
 ### Economy
@@ -230,9 +201,67 @@ data$TotalPropertyDamage <- ifelse(data$PROPDMGEXP == 'K', data$PROPDMG * 1000,
 data$TotalCropDamage <- ifelse(data$CROPDMGEXP == 'K', data$CROPDMG * 1000,
                                ifelse(data$CROPDMGEXP == 'M', data$CROPDMG * 1000000,
                                                 data$CROPDMG * 1000000000))
+```
 
+Total the damages to crops and property for each `EventType`:
+
+```{r economicImpact}
+propertyDamage <- tapply(data$TotalPropertyDamage, data$EventType, sum)
+cropDamage <- tapply(data$TotalCropDamage, data$EventType, sum)
+economicImpact <- as.data.frame(cbind(propertyDamage, cropDamage))
+economicImpact <- economicImpact[!is.na(economicImpact$propertyDamage),]
 ```
 
 # Results
+
+Since there are `r length(categories)` weather event types, only the top five
+most significant impacts on health and the economy will be plotted.
+
+## Health
+
+Get the top five weather events most harmful to population health:
+
+```{r topHealthImpact}
+topInjuries <- healthImpact[order(-healthImpact$injuries),'injuries', drop=FALSE][1:5,, drop=FALSE]
+topFatalities <- healthImpact[order(-healthImpact$fatalities), 'fatalities', drop=FALSE][1:5,, drop=FALSE]
+```
+
+Plot a single chart with two panels for comparison:
+
+```{r healthImpactPlot}
+par(mar=c(5,11,4,2))
+par(mfrow=c(2,1))
+barplot(topInjuries$injuries, names.arg=row.names(topInjuries), las=2, horiz=TRUE,
+        xlab='Total Injuries', main='The top five injury-causing weather events')
+barplot(topFatalities$fatalities, names.arg=row.names(topFatalities), las=2, horiz=TRUE,
+        xlab='Total Fatalities', main='The top five deadliest weather events')
+```
+
+## Economic
+
+Get the top five weather events with the greatest economic consequences:
+
+```{r topEconomicImpact}
+topPropertyDamage <- economicImpact[order(-economicImpact$propertyDamage),
+                                    'propertyDamage', drop=FALSE][1:5,, drop=FALSE]
+topCropDamage <- economicImpact[order(-economicImpact$cropDamage),
+                                      'cropDamage', drop=FALSE][1:5,, drop=FALSE]
+```
+
+Plot a single chart with two panels for comparison:
+
+```{r economicImpactPlot}
+par(mar=c(5,11,4,2))
+par(mfrow=c(2,1))
+barplot(topPropertyDamage$propertyDamage/1000000000, names.arg=row.names(topPropertyDamage),
+        las=2, horiz=TRUE, xlab='Billions of dollars',
+        main='The top five weather events responsible\nfor property damage')
+barplot(topCropDamage$cropDamage/1000000000, names.arg=row.names(topCropDamage),
+        las=2, horiz=TRUE, xlab='Billions of dollars',
+        main='The top five weather events responsible\nfor crop damage')
+```
+
+
+
 
 
