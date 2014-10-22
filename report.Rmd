@@ -4,9 +4,9 @@ The Economic and Health Impact of U.S. Weather Events (1950-2011)
 # Synopsis
 
 The data for this analysis was obtained from the U.S. National Oceanic and
-Atmospheric Administration's (NOAA) storm database. Its purpose analysis is to
+Atmospheric Administration's (NOAA) storm database. Its purpose is to
 determine which weather events have the greatest impact on population health and
-the economy. That which follows provides and exact, reproducible steps in data
+the economy. That which follows provides exact, reproducible steps in data
 processing, analysis, and visualization.
 
 # Data Processing
@@ -34,12 +34,12 @@ data <- read.csv('StormData.csv.bz2')
 ## Find relevant data
 
 This study is concerned with the impact of weather events on health and the
-economy. The following sections identify, isolate, and process the relevant data
+economy. The following sections investigate and indentify the relevant data
 in order to draw sensible conclusions.
 
 An explanation of the data, including the columns identified below, can be found
 [here]
-(https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+(https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf).
 
 ### Event Types
 
@@ -81,8 +81,8 @@ event.
 
 #### Mixed casing
 
-Entries like these are effectively duplicates, but won't be recognized as such
-because of the mixed capital and lower case letters:
+Entries like these are effectively duplicates, but won't automatically be
+recognized as such because of the mixed capital and lower case letters:
 
 ```{r mixedCasing}
 eventTypes[185:188]
@@ -101,8 +101,8 @@ In light of this messy event classification, the
 `r length(eventTypes)` event types will be matched and categorized according to
 the most significant terms comprising the events named in the *Storm Data Event
 Table* in section 2.1.1 of [Storm Data Preparation]
-(https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
-. This classification is obtained as follows:
+(https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf).
+This classification is obtained as follows:
 
 ```{r classification}
 categories <- list('Astronomical Low Tide' = eventTypes[grep('Astronomical', eventTypes, ignore.case=TRUE)],
